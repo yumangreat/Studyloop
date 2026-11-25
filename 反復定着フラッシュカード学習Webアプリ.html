@@ -1,0 +1,2013 @@
+<!DOCTYPE html>
+<html lang="ja" class="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StudyLoop - 反復定着フラッシュカード学習アプリ</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter & Noto Sans JP -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;700;800&display=swap" rel="stylesheet" />
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Inter"', '"Noto Sans JP"', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            }
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    /* カード3Dフリップ用アニメーション */
+    .perspective-1000 {
+      perspective: 1200px;
+    }
+    .preserve-3d {
+      transform-style: preserve-3d;
+      transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .backface-hidden {
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+    }
+    .rotate-y-180 {
+      transform: rotateY(180deg);
+    }
+
+    /* 赤シート機能：伏せ字モード時のスタイル */
+    .red-sheet-hidden .highlight-term {
+      background-color: #f43f5e !important;
+      color: transparent !important;
+      border-color: #e11d48 !important;
+      user-select: none;
+      cursor: pointer;
+    }
+    .red-sheet-hidden .highlight-term:hover {
+      background-color: rgba(244, 63, 94, 0.25) !important;
+      color: inherit !important;
+    }
+
+    /* カスタムスクロールバー */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(148, 163, 184, 0.4);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(148, 163, 184, 0.7);
+    }
+
+    /* タップハイライト無効化 */
+    button, .cursor-pointer {
+      -webkit-tap-highlight-color: transparent;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100 min-h-screen flex flex-col transition-colors duration-200 antialiased">
+
+  <!-- ==================== ヘッダー ==================== -->
+  <header class="sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
+    <div class="max-w-5xl mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-2">
+      <!-- ロゴ -->
+      <div class="flex items-center gap-2.5 shrink-0">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-rose-500 flex items-center justify-center text-white shadow-sm">
+          <i class="fa-solid fa-layer-group text-base"></i>
+        </div>
+        <div>
+          <h1 class="font-extrabold text-base sm:text-lg tracking-tight leading-none">StudyLoop</h1>
+          <p class="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">反復定着フラッシュカード</p>
+        </div>
+      </div>
+
+      <!-- デッキ選択ドロップダウン -->
+      <div class="flex-1 max-w-xs sm:max-w-md mx-1">
+        <div class="relative">
+          <select id="deckSelector" aria-label="学習デッキ選択"
+            class="w-full appearance-none bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl pl-3 pr-8 py-2 text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 truncate cursor-pointer">
+          </select>
+          <i class="fa-solid fa-chevron-down text-xs text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+        </div>
+      </div>
+
+      <!-- 右側アクション（テーマ切替・新規デッキ） -->
+      <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        <button id="btnNewDeckModal" title="新規デッキ作成"
+          class="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition text-xs sm:text-sm font-semibold flex items-center gap-1.5">
+          <i class="fa-solid fa-folder-plus"></i>
+          <span class="hidden md:inline">新規デッキ</span>
+        </button>
+        <button id="btnToggleTheme" title="ダーク/ライトモード切替"
+          class="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-center transition">
+          <i id="themeIcon" class="fa-solid fa-moon"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- ナビゲーションタブ -->
+    <nav class="max-w-5xl mx-auto px-3 sm:px-6 flex gap-1 sm:gap-2 border-t border-slate-100 dark:border-slate-800/80 overflow-x-auto">
+      <button data-tab="study" class="nav-tab active-tab flex-1 sm:flex-none px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400 flex items-center justify-center gap-2 whitespace-nowrap transition">
+        <i class="fa-solid fa-graduation-cap"></i> 学習モード
+      </button>
+      <button data-tab="stats" class="nav-tab flex-1 sm:flex-none px-4 py-2.5 text-xs sm:text-sm font-semibold border-b-2 border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 flex items-center justify-center gap-2 whitespace-nowrap transition">
+        <i class="fa-solid fa-chart-line"></i> 成績・苦手分析
+      </button>
+      <button data-tab="manage" class="nav-tab flex-1 sm:flex-none px-4 py-2.5 text-xs sm:text-sm font-semibold border-b-2 border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 flex items-center justify-center gap-2 whitespace-nowrap transition">
+        <i class="fa-solid fa-sliders"></i> 問題追加・管理
+      </button>
+    </nav>
+  </header>
+
+  <!-- ==================== メインコンテンツ ==================== -->
+  <main class="flex-1 max-w-5xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-6">
+
+    <!-- ============================================================ -->
+    <!-- TAB 1: 学習モード                                            -->
+    <!-- ============================================================ -->
+    <section id="tab-study" class="space-y-4 sm:space-y-5">
+      <!-- モード選択バー -->
+      <div class="bg-white dark:bg-slate-900 rounded-2xl p-3 sm:p-4 shadow-sm border border-slate-200/80 dark:border-slate-800">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <button data-mode="block5" class="mode-btn p-3 rounded-xl border-2 text-left transition flex items-start gap-3 border-indigo-600 bg-indigo-50/70 dark:bg-indigo-950/40 dark:border-indigo-500">
+            <div class="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0 mt-0.5">
+              <i class="fa-solid fa-repeat text-xs"></i>
+            </div>
+            <div>
+              <div class="font-bold text-xs sm:text-sm text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5">
+                5問1セット・徹底定着
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-rose-500 text-white font-bold">推奨</span>
+              </div>
+              <p class="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">5問ごとに振り返り＆次セットへ自動繰り越し</p>
+            </div>
+          </button>
+
+          <button data-mode="weakness" class="mode-btn p-3 rounded-xl border-2 text-left transition flex items-start gap-3 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700">
+            <div class="w-8 h-8 rounded-lg bg-rose-500 text-white flex items-center justify-center shrink-0 mt-0.5">
+              <i class="fa-solid fa-fire text-xs"></i>
+            </div>
+            <div>
+              <div class="font-bold text-xs sm:text-sm">苦手・不正解集中</div>
+              <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">誤答履歴・低正答率・未習熟問題を優先抽出</p>
+            </div>
+          </button>
+
+          <button data-mode="all" class="mode-btn p-3 rounded-xl border-2 text-left transition flex items-start gap-3 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700">
+            <div class="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 mt-0.5">
+              <i class="fa-solid fa-shuffle text-xs"></i>
+            </div>
+            <div>
+              <div class="font-bold text-xs sm:text-sm">全問 / カテゴリ別演習</div>
+              <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">順番通り or シャッフルで自由演習</p>
+            </div>
+          </button>
+        </div>
+
+        <!-- モード別サブコントロール -->
+        <div id="subControlsBlock5" class="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+          <div class="flex flex-wrap items-center gap-2">
+            <span id="blockPhaseBadge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800 dark:bg-indigo-900/70 dark:text-indigo-200">
+              <i class="fa-solid fa-play-circle"></i> セット 1 学習中 (1/5)
+            </span>
+            <span id="blockCarryOverBadge" class="hidden inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
+              <i class="fa-solid fa-forward"></i> 次回振り返りへ繰り越し: <span id="carryOverCount">0</span>問
+            </span>
+          </div>
+          <div class="flex items-center gap-2">
+            <button id="btnResetBlockSession" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition">
+              <i class="fa-solid fa-rotate-left mr-1"></i>セット最初から
+            </button>
+          </div>
+        </div>
+
+        <div id="subControlsAll" class="hidden mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+          <div class="flex flex-wrap items-center gap-2">
+            <select id="studyCategoryFilter" class="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-xs font-semibold">
+              <option value="ALL">すべてのカテゴリ</option>
+            </select>
+            <button id="btnToggleShuffle" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition flex items-center gap-1.5">
+              <i class="fa-solid fa-arrow-down-1-9" id="shuffleIcon"></i>
+              <span id="shuffleLabel">出題順: 順番通り</span>
+            </button>
+          </div>
+          <button id="btnRestartSimpleSession" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition">
+            <i class="fa-solid fa-rotate-left mr-1"></i>最初からやり直す
+          </button>
+        </div>
+
+        <div id="subControlsWeakness" class="hidden mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+          <span id="weaknessSummaryText" class="text-xs font-semibold text-rose-600 dark:text-rose-400">
+            <i class="fa-solid fa-circle-exclamation mr-1"></i>抽出対象: 0問
+          </span>
+          <button id="btnReloadWeakness" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-300 hover:bg-rose-100 transition">
+            <i class="fa-solid fa-arrows-rotate mr-1"></i>最新履歴で再抽出
+          </button>
+        </div>
+      </div>
+
+      <!-- プログレスバー -->
+      <div class="bg-white dark:bg-slate-900 rounded-2xl px-4 py-3 shadow-sm border border-slate-200/80 dark:border-slate-800">
+        <div class="flex items-center justify-between text-xs font-semibold mb-1.5">
+          <span id="progressLeftLabel" class="text-slate-600 dark:text-slate-300">進捗状況</span>
+          <span id="progressRightLabel" class="text-indigo-600 dark:text-indigo-400 font-bold">0 / 50 問</span>
+        </div>
+        <div class="w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+          <div id="studyProgressBar" class="h-full bg-gradient-to-r from-indigo-500 to-rose-500 rounded-full transition-all duration-300" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <!-- 学習完了画面（セッションクリア時表示） -->
+      <div id="studyCompleteView" class="hidden bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-10 text-center shadow-md border border-slate-200 dark:border-slate-800 space-y-4">
+        <div class="w-16 h-16 rounded-2xl bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto text-3xl">
+          <i class="fa-solid fa-trophy"></i>
+        </div>
+        <h2 id="completeTitle" class="text-xl sm:text-2xl font-extrabold">セット完全制覇おめでとうございます！</h2>
+        <p id="completeMessage" class="text-sm text-slate-600 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
+          繰り越し問題を含め、すべての問題をクリアしました。成績タブで定着度を確認するか、もう一度演習できます。
+        </p>
+        <div class="flex flex-wrap justify-center gap-3 pt-2">
+          <button id="btnCompleteRestart" class="px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-sm transition">
+            <i class="fa-solid fa-rotate-right mr-1.5"></i>同じモードでもう一度学習
+          </button>
+          <button id="btnCompleteGoWeakness" class="px-5 py-3 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-sm shadow-sm transition">
+            <i class="fa-solid fa-fire mr-1.5"></i>苦手問題だけ復習する
+          </button>
+        </div>
+      </div>
+
+      <!-- フラッシュカード本体エリア -->
+      <div id="flashcardStage" class="space-y-4">
+        <!-- カード上部ツールバー（戦績バッジ＆赤シート切替） -->
+        <div class="flex flex-wrap items-center justify-between gap-2 px-1">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span id="cardCategoryBadge" class="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+              カテゴリ
+            </span>
+            <span id="cardStatsBadge" class="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400">
+              未学習
+            </span>
+          </div>
+
+          <button id="btnToggleRedSheet" class="px-3 py-1.5 rounded-xl text-xs font-bold border transition flex items-center gap-1.5 bg-white dark:bg-slate-900 border-rose-200 dark:border-rose-900/60 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40">
+            <i class="fa-solid fa-eye-slash" id="redSheetIcon"></i>
+            <span id="redSheetLabel">赤シート隠す: OFF</span>
+          </button>
+        </div>
+
+        <!-- 3Dフリップカード -->
+        <div class="perspective-1000 w-full">
+          <div id="flashcardInner" class="preserve-3d relative w-full min-h-[300px] sm:min-h-[350px] cursor-pointer select-none">
+            
+            <!-- 表面（問題） -->
+            <div class="backface-hidden absolute inset-0 bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-8 shadow-md border-2 border-slate-200/90 dark:border-slate-800 flex flex-col justify-between">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-extrabold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-indigo-500"></span> QUESTION（問題）
+                </span>
+                <span id="cardNumberLabel" class="text-xs font-mono font-bold text-slate-400">#1</span>
+              </div>
+
+              <div class="my-auto py-4 text-center">
+                <p id="cardFrontText" class="text-lg sm:text-2xl font-bold leading-relaxed text-slate-900 dark:text-white whitespace-pre-line">
+                  問題文がここに表示されます
+                </p>
+              </div>
+
+              <!-- ヒント表示エリア -->
+              <div class="space-y-2">
+                <div id="cardHintBox" class="hidden p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-xs sm:text-sm text-amber-900 dark:text-amber-200 text-center">
+                  <i class="fa-solid fa-lightbulb text-amber-500 mr-1.5"></i>
+                  <span id="cardHintText"></span>
+                </div>
+
+                <div class="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                  <button type="button" id="btnShowHint" class="px-3 py-1.5 rounded-lg text-xs font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/50 transition">
+                    <i class="fa-regular fa-lightbulb mr-1"></i>ヒントを見る (H)
+                  </button>
+                  <span class="text-xs text-slate-400 font-medium">
+                    タップまたは <kbd class="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-[10px]">Space</kbd> で答えを表示
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 裏面（答え・解説） -->
+            <div class="backface-hidden rotate-y-180 absolute inset-0 bg-gradient-to-b from-white to-slate-50 dark:from-slate-900 dark:to-slate-900/95 rounded-3xl p-5 sm:p-8 shadow-md border-2 border-indigo-500/50 dark:border-indigo-500/40 flex flex-col justify-between overflow-y-auto">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-extrabold uppercase tracking-wider text-rose-600 dark:text-rose-400 flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-rose-500"></span> ANSWER（答え・解説）
+                </span>
+                <span class="text-xs text-slate-400 font-medium">タップで表面へ戻る</span>
+              </div>
+
+              <div id="cardBackContainer" class="my-auto py-4 text-center space-y-3">
+                <div id="cardBackText" class="text-base sm:text-xl font-bold leading-relaxed text-slate-900 dark:text-slate-100 whitespace-pre-line">
+                </div>
+              </div>
+
+              <div class="pt-2 border-t border-slate-200/70 dark:border-slate-800 text-center">
+                <p class="text-[11px] text-slate-500 dark:text-slate-400">
+                  下のボタンで自己判定してください（赤枠がテスト頻出の重要語句です）
+                </p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- 判定アクションボタン -->
+        <div class="grid grid-cols-2 gap-3 sm:gap-4 pt-1">
+          <button id="btnJudgeWrong" class="group py-3.5 sm:py-4 px-4 rounded-2xl bg-white dark:bg-slate-900 border-2 border-rose-500/80 hover:bg-rose-500 text-rose-600 dark:text-rose-400 hover:text-white font-extrabold text-sm sm:text-base shadow-sm transition active:scale-[0.98] flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-xmark text-lg"></i>
+              <span>不正解（もう一度）</span>
+            </div>
+            <span class="text-[10px] opacity-75 font-mono">[1 / ←キー]</span>
+          </button>
+
+          <button id="btnJudgeCorrect" class="group py-3.5 sm:py-4 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 border-2 border-emerald-600 text-white font-extrabold text-sm sm:text-base shadow-sm transition active:scale-[0.98] flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-check text-lg"></i>
+              <span>正解（覚えた！）</span>
+            </div>
+            <span class="text-[10px] opacity-85 font-mono">[2 / →キー]</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- TAB 2: 成績・苦手分析ダッシュボード                          -->
+    <!-- ============================================================ -->
+    <section id="tab-stats" class="hidden space-y-5">
+      <!-- KPIサマリー -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+          <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">デッキ総問題数</p>
+          <p id="statTotalCards" class="text-2xl sm:text-3xl font-extrabold mt-1">0</p>
+        </div>
+        <div class="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+          <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">学習済み問題</p>
+          <p id="statStudiedCards" class="text-2xl sm:text-3xl font-extrabold text-indigo-600 dark:text-indigo-400 mt-1">0</p>
+        </div>
+        <div class="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+          <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">定着済み（連続2回以上）</p>
+          <p id="statMasteredCards" class="text-2xl sm:text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">0</p>
+        </div>
+        <div class="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+          <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">平均正答率</p>
+          <p id="statAvgAccuracy" class="text-2xl sm:text-3xl font-extrabold text-rose-600 dark:text-rose-400 mt-1">0%</p>
+        </div>
+      </div>
+
+      <!-- カテゴリ別達成度 -->
+      <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+        <div class="flex items-center justify-between">
+          <h3 class="font-bold text-sm sm:text-base flex items-center gap-2">
+            <i class="fa-solid fa-folder-tree text-indigo-500"></i> カテゴリ別正答率
+          </h3>
+          <button id="btnResetDeckStats" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 hover:bg-rose-100 transition">
+            <i class="fa-solid fa-trash-can mr-1"></i>このデッキの学習履歴をリセット
+          </button>
+        </div>
+        <div id="categoryStatsList" class="space-y-3 pt-1"></div>
+      </div>
+
+      <!-- 苦手・要復習ランキング -->
+      <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+        <div class="flex items-center justify-between flex-wrap gap-2">
+          <h3 class="font-bold text-sm sm:text-base flex items-center gap-2">
+            <i class="fa-solid fa-triangle-exclamation text-rose-500"></i> 苦手・不正解ランキング（要復習リスト）
+          </h3>
+          <button id="btnStartWeaknessFromStats" class="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-rose-500 hover:bg-rose-600 text-white transition">
+            <i class="fa-solid fa-fire mr-1"></i>この苦手問題を今すぐ特訓する
+          </button>
+        </div>
+        <div id="weaknessRankingList" class="divide-y divide-slate-100 dark:divide-slate-800"></div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- TAB 3: 問題追加・アップデート＆デッキ管理                    -->
+    <!-- ============================================================ -->
+    <section id="tab-manage" class="hidden space-y-5">
+      <!-- デッキ操作＆一括アップデートバー -->
+      <div class="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 class="font-extrabold text-base sm:text-lg" id="manageDeckTitle">デッキ管理</h2>
+            <p class="text-xs text-slate-500 dark:text-slate-400" id="manageDeckDesc">問題の追加・編集・AI一括インポート・バックアップが行えます</p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button id="btnRenameDeck" class="px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition">
+              <i class="fa-solid fa-pen mr-1"></i>デッキ名変更
+            </button>
+            <button id="btnDeleteDeck" class="px-3 py-2 rounded-xl text-xs font-bold bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 hover:bg-rose-100 transition">
+              <i class="fa-solid fa-trash mr-1"></i>デッキ削除
+            </button>
+          </div>
+        </div>
+
+        <!-- アップデート機能ボタン群 -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+          <button id="btnOpenBulkImport" class="p-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm transition">
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+            <span>AI連携・テキスト一括追加</span>
+          </button>
+          <button id="btnExportJson" class="p-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition">
+            <i class="fa-solid fa-file-export text-emerald-600 dark:text-emerald-400"></i>
+            <span>JSONバックアップ保存</span>
+          </button>
+          <label class="p-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer transition">
+            <i class="fa-solid fa-file-import text-amber-600 dark:text-amber-400"></i>
+            <span>JSON読み込み・復元</span>
+            <input type="file" id="inputImportJson" accept=".json" class="hidden" />
+          </label>
+        </div>
+      </div>
+
+      <!-- GUI問題エディタ（新規追加・編集フォーム） -->
+      <div class="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+        <div class="flex items-center justify-between">
+          <h3 id="editorFormTitle" class="font-bold text-sm sm:text-base flex items-center gap-2">
+            <i class="fa-solid fa-circle-plus text-indigo-500"></i> 新しい問題を追加する
+          </h3>
+          <button id="btnCancelEdit" class="hidden text-xs font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">
+            編集をキャンセル
+          </button>
+        </div>
+
+        <form id="cardEditorForm" class="space-y-3">
+          <input type="hidden" id="editCardId" value="" />
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold mb-1">表面（問題文） <span class="text-rose-500">*</span></label>
+              <textarea id="inputCardFront" rows="3" required placeholder="例：1453年にオスマン帝国が攻略し、ビザンツ帝国を滅ぼした都市は？"
+                class="w-full rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+            </div>
+            <div>
+              <label class="block text-xs font-bold mb-1">
+                裏面（答え・解説） <span class="text-rose-500">*</span>
+                <span class="font-normal text-[11px] text-rose-500 ml-1">※【 】で囲むと赤字強調されます</span>
+              </label>
+              <textarea id="inputCardBack" rows="3" required placeholder="例：【コンスタンティノープル攻略】&#10;これを機に領土拡大が本格化しました。"
+                class="w-full rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold mb-1">ヒント（任意）</label>
+              <input type="text" id="inputCardHint" placeholder="例：現在のイスタンブール"
+                class="w-full rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold mb-1">カテゴリ（任意）</label>
+              <input type="text" id="inputCardCategory" placeholder="例：3.オスマン帝国"
+                class="w-full rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+          </div>
+
+          <div class="flex justify-end">
+            <button type="submit" id="btnSubmitCard" class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-sm transition">
+              <i class="fa-solid fa-plus mr-1.5"></i>問題をデッキに追加
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- 登録済みカード一覧 -->
+      <div class="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h3 class="font-bold text-sm sm:text-base">
+            登録問題一覧（<span id="manageCardCount">0</span>問）
+          </h3>
+          <div class="relative w-full sm:w-64">
+            <i class="fa-solid fa-magnifying-glass text-xs text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+            <input type="text" id="manageSearchInput" placeholder="問題・答え・カテゴリを検索..."
+              class="w-full pl-8 pr-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+        </div>
+        <div id="manageCardList" class="space-y-2.5 max-h-[500px] overflow-y-auto pr-1"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ==================== モーダル：AI連携・一括追加 ==================== -->
+  <div id="modalBulkImport" class="hidden fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+    <div class="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full max-h-[90vh] flex flex-col border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden">
+      <div class="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+        <h3 class="font-extrabold text-base sm:text-lg flex items-center gap-2">
+          <i class="fa-solid fa-wand-magic-sparkles text-indigo-500"></i> AI連携・テキスト一括追加
+        </h3>
+        <button id="btnCloseBulkModal" class="w-8 h-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-slate-500">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="p-5 overflow-y-auto space-y-4 text-xs sm:text-sm">
+        <!-- AIプロンプトテンプレート -->
+        <div class="p-3.5 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 space-y-2">
+          <div class="flex items-center justify-between gap-2">
+            <span class="font-bold text-indigo-900 dark:text-indigo-200 text-xs">
+              <i class="fa-solid fa-robot mr-1"></i>今後のテスト対策に超便利！AI用プロンプト
+            </span>
+            <button id="btnCopyAiPrompt" class="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition shrink-0">
+              <i class="fa-regular fa-copy mr-1"></i>指示文をコピー
+            </button>
+          </div>
+          <p class="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+            ノートやプリントの写真をGemini等に送り、下の指示文を貼り付けると、このアプリにそのまま一括登録できる形式で問題を作ってくれます。
+          </p>
+          <pre id="aiPromptTemplate" class="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-indigo-100 dark:border-slate-800 text-[11px] font-mono overflow-x-auto text-slate-700 dark:text-slate-300 select-all">この画像（または範囲）の重要ポイントをテスト対策用のフラッシュカードにしてください。
+出力は必ず1行につき1問で、以下の区切り形式（パイプ区切り）のみで出力してください。重要語句は【 】で囲んでください。
+形式: 問題文 | 答え・解説 | ヒント | カテゴリ名</pre>
+        </div>
+
+        <!-- 貼り付けエリア -->
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="font-bold text-xs">一括登録データ貼り付け（パイプ `|` 区切り / タブ区切り / JSON配列対応）</label>
+            <span id="bulkParseCount" class="text-xs font-bold text-emerald-600 dark:text-emerald-400">認識: 0問</span>
+          </div>
+          <textarea id="bulkImportTextarea" rows="6" placeholder="1行に1問ずつ貼り付けてください：&#10;オームの法則の式は？ | 【V = IR】電圧は電流と抵抗の積に等しい。 | Vは電圧、Iは電流 | 1.電気回路&#10;キルヒホッフの第1法則は？ | 回路の分岐点に流れ込む【電流の総和は0】になる法則。 | 電流保存則 | 1.電気回路"
+            class="w-full rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+        </div>
+
+        <!-- 追加先選択 -->
+        <div class="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60">
+          <label class="flex items-center gap-2 cursor-pointer font-semibold text-xs">
+            <input type="radio" name="bulkTarget" value="current" checked class="accent-indigo-600" />
+            <span>現在選択中のデッキに追加</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer font-semibold text-xs">
+            <input type="radio" name="bulkTarget" value="new" class="accent-indigo-600" />
+            <span>新しいデッキを作成して追加</span>
+          </label>
+          <input type="text" id="bulkNewDeckName" placeholder="新規デッキ名（例：電気回路 中間対策）"
+            class="hidden flex-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 px-2.5 py-1.5 text-xs" />
+        </div>
+      </div>
+
+      <div class="px-5 py-3.5 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
+        <button id="btnCancelBulkModal" class="px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+          キャンセル
+        </button>
+        <button id="btnExecuteBulkImport" class="px-5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm">
+          <i class="fa-solid fa-check mr-1"></i>一括追加を実行
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== カスタムダイアログ（alert/confirm代替） ==================== -->
+  <div id="customDialog" class="hidden fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full p-5 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
+      <h3 id="dialogTitle" class="font-extrabold text-base">確認</h3>
+      <p id="dialogMessage" class="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-line"></p>
+      <div id="dialogInputWrap" class="hidden">
+        <input type="text" id="dialogInput" class="w-full rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+      </div>
+      <div class="flex justify-end gap-2 pt-1">
+        <button id="dialogCancelBtn" class="px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition">
+          キャンセル
+        </button>
+        <button id="dialogConfirmBtn" class="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition">
+          OK
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- トースト通知 -->
+  <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- ==================== アプリケーションロジック ==================== -->
+  <script>
+    /**
+     * 初期プリセットデータ：世界史：イスラーム世界の変容と大航海時代（赤文字50問）
+     */
+    const PRESET_WORLD_HISTORY_CARDS = [
+      { front: "モンゴル高原西部を原住地とし、軍事力に優れイスラーム世界の主役へと移動した人々", back: "【トルコ人（Türk）】\n生活形態は【遊牧民】で機動力と軍事力に優れ、9世紀以降に西進してイスラーム世界の担い手となりました。", hint: "定住民に対する生活形態と「ト」から始まる民族名", category: "1.トルコ人の移動" },
+      { front: "イスラーム王朝がトルコ系遊牧民を部族ごとの傭兵として雇った軍人身分", back: "【マムルーク】\n【部族】ごとの【傭兵】として雇われましたが、身分上は高級【奴隷】（商品）として扱われました。", hint: "のちにエジプトで同名の王朝も建国する", category: "1.トルコ人の移動" },
+      { front: "マムルークやイクター制・ティマール制において主君と軍人の間で結ばれた交換関係", back: "【徴税権 ⇔ 軍役】\n土地そのものの所有権ではなく、一定地域の税を取り立てる権利と引き換えに軍事奉仕を行いました。", hint: "税を集める権利と戦う義務の交換", category: "1.トルコ人の移動" },
+      { front: "9世紀に分裂・弱体化し、多くのトルコ人が中央アジアへ移動するきっかけとなった帝国", back: "【ウイグル帝国】\nトルコ系のこの帝国が崩れたことで、トルコ人の大規模な西への移動が始まりました。", hint: "「ウ」から始まるトルコ系の遊牧帝国", category: "1.トルコ人の移動" },
+      { front: "9世紀、トルコ系の多くが中央アジアへ移動したことで成立した地域名称", back: "【トルキスタン成立】\n「トルコ人の土地」を意味し、ここを拠点にイスラーム化と王朝建国が進みました。", hint: "中央アジアに成立した地域名", category: "1.トルコ人の移動" },
+      { front: "10世紀に中央アジア（東側）でトルコ人が建国したイスラーム王朝", back: "【カラ＝ハン朝】\n西アジアのセルジューク朝と並び、トルコ人が自ら建国した代表的なイスラーム王朝です。", hint: "西アジアのセルジューク朝と並ぶ中央アジア側の王朝", category: "1.トルコ人の移動" },
+      { front: "西アジアに建国され、1055年にバグダードへ入城して実権を握ったトルコ人王朝", back: "【セルジューク朝】\n創始者トゥグリル＝ベクがバグダードを攻略し、中央アジアから西アジアへと領土を急拡大させました。", hint: "中央から西アジアへ領土を急拡大させた王朝", category: "1.トルコ人の移動" },
+      { front: "1055年、セルジューク朝がバグダードを攻略する際に掲げた大義名分と、追放したイラン系王朝", back: "【名目】：イラン系の【ブワイフ朝】からアラブ系のアッバース朝を救出すること\n弱体化していたアッバース朝の王を助けるという建前で入城しました。", hint: "建前を表す漢字2文字と「ブ」から始まるイラン系王朝", category: "1.トルコ人の移動" },
+      { front: "預言者ムハンマドの後継者であり、実権を失って宗教上のシンボルとなっていたアッバース朝の王", back: "【カリフ】\n【ムハンマドの後継者】として宗教的権威は保ちましたが、政治・軍事の実権は失っていました。", hint: "「カ」から始まる宗教的権威の称号", category: "1.トルコ人の移動" },
+      { front: "カリフに任命された「下僕」という建前で、実際の軍事・政治支配者となった称号", back: "【スルタン】\n【カリフの下僕 ⇒ 軍事・政治支配者】として1055年にトゥグリル＝ベクが任命されました。", hint: "1055年にトゥグリル＝ベクが任命された世俗の最高支配者", category: "1.トルコ人の移動" },
+      { front: "セルジューク朝などが導入した、土地からの徴税権を付与し軍役奉仕をさせる封建制", back: "【イクター制：封建制】（土地封土）\n交通が未発達で中央権力が及びにくいため、各地の有力者に徴税権を与えて軍事力を確保しました（西欧・日本と違い土地所有や世襲は原則不可）。", hint: "「イ」から始まる3文字＋「制」", category: "1.トルコ人の移動" },
+      { front: "13世紀半ばにエジプト・シリアで成立し、モンゴル軍を撃退して貿易を振興したトルコ系王朝", back: "【マムルーク朝】\n12世紀半ばのアイユーブ朝に続いて成立し、十字軍やモンゴル軍を退けて紅海貿易を保護しました。", hint: "奴隷軍人を意味する言葉がそのまま王朝名", category: "2.交易とインド化" },
+      { front: "戦乱でイラク経由の陸路が混乱した際、代替海路として発展した「地中海—エジプト—（？）—インド洋」の要所", back: "【紅海】\n十字軍やモンゴル侵攻による陸路の混乱を受け、エジプトと紅海を経由する海上ルートが東西貿易のメインとなりました。", hint: "アラビア半島とアフリカ大陸の間にある細長い海", category: "2.交易とインド化" },
+      { front: "紅海・インド洋ルートで活躍し、インド・東南アジア・中国へ進出したアラブ系イスラーム商人", back: "【カリミー商人】\nマムルーク朝の保護のもとで香辛料貿易などを担い、のちにオスマン帝国にエジプトごと掌握されました。", hint: "「カ」から始まる商人集団", category: "2.交易とインド化" },
+      { front: "インド北西部の難所で、アフガン系王朝が突破し奴隷王朝がモンゴル軍の侵攻を防衛した地形上の要衝", back: "【カイバル峠】\nここを越えて北インドへ進出した後、逆にこの難所で防衛を固めることでモンゴル軍の侵入を阻止しました。", hint: "アフガニスタンと北インドを結ぶ「カ」から始まる峠", category: "2.交易とインド化" },
+      { front: "カイバル峠を越えて北インドに成立した最初のトルコ系イスラーム王朝", back: "【奴隷王朝】\nマムルーク出身の武将が建国し、カイバル峠でモンゴル軍を防いで北インド支配の基礎を築きました。", hint: "デリー＝スルタン朝の5王朝のうち最初の王朝", category: "2.交易とインド化" },
+      { front: "奴隷王朝以降、北インドに成立した5つのイスラーム王朝の総称", back: "【デリー＝スルタン朝】\n13世紀初頭から16世紀前半にかけて北インドを支配した5つの王朝の総称です。", hint: "都の名前と支配者の称号を組み合わせた名称", category: "2.交易とインド化" },
+      { front: "デリー＝スルタン朝のもとで進行した、インド社会における宗教・文化の変容", back: "【北インドのイスラーム化】\n支配層がイスラーム王朝となったことで北インドを中心にイスラーム教とペルシア文化が広まりました。", hint: "インドのどの地域で何教化が進んだか", category: "2.交易とインド化" },
+      { front: "インド世界がユーラシア規模の商業ネットワークにおいて果たした役割", back: "【海上貿易ルートの拠点・中継地】\n西の紅海・ペルシア湾と東の東南アジア・中国を結ぶインド洋貿易の中心地として栄えました。", hint: "「海上貿易ルートの〇〇・〇〇〇」", category: "2.交易とインド化" },
+      { front: "イスラーム王朝が改宗しない非イスラーム教徒に対して課した人頭税", back: "【ジズヤ（人頭税）】\nこれを支払うことで非イスラーム教徒も信仰の自由と生命・財産の保護を認められました。", hint: "「ジ」から始まる3文字の税名", category: "2.交易とインド化" },
+      { front: "土地に対して課された税で、ハルジー朝では金納化が進められた税制", back: "【ハラージュ（地租）】\n現物納から貨幣で納める「金納化」へ革新されたことで、インド国内の商業が活発化しました。", hint: "「ハ」から始まる5文字の税名", category: "2.交易とインド化" },
+      { front: "ジズヤやハラージュの金納化など税制の革新によってインド世界で促進された経済変化", back: "【貨幣経済の発達】\n農民が税を貨幣で納めるために作物を市場で売るようになり、貨幣の流通と商業が大きく発展しました。", hint: "作物を売って貨幣で納税するようになったことで発達したもの", category: "2.交易とインド化" },
+      { front: "トルコ系イスラーム王朝がペルシア文化を導入して築いた統治基盤が、15世紀のどの帝国の基礎になったか", back: "【ムガル帝国の基礎】\nデリー＝スルタン朝による統治とペルシア文化の導入が、のちのムガル帝国の土台となりました。", hint: "15〜16世紀以降にインドを統治した大帝国", category: "2.交易とインド化" },
+      { front: "13世紀末にアナトリアで自立したトルコ系遊牧民の部族と、その始祖の称号", back: "【オスマン部族】・【始祖（首長ベイ）】\n12世紀前半のセルジューク朝分裂後、13世紀末にアナトリアで自立しました。", hint: "のちに大帝国へと発展する部族名", category: "3.オスマン帝国" },
+      { front: "14世紀にオスマン部族がアナトリアおよびバルカン半島へ進出し、土地を獲得して築いた統治形態", back: "【土地とる＝封建制】\nアンカラの戦い以前は、征服地を配下に分け与える封建制的な部族連合国家でした。", hint: "アンカラの戦い前の部族連合・封建制の段階", category: "3.オスマン帝国" },
+      { front: "1402年のアンカラの戦いでオスマン朝を破り、皇帝バヤジット1世を捕虜にしたトルコ系の征服者", back: "【ティムール】\nこれにより非オスマン系トルコ部族が離反し、スルタンの継承権争いで部族国家が一時中断しました。", hint: "「ティ」から始まる中央アジアの征服者", category: "3.オスマン帝国" },
+      { front: "15世紀前半に西で進められたオスマン帝国の立て直し", back: "【オスマン再建】\nアンカラの戦いの敗北から立ち直り、集権的な大帝国へと生まれ変わる改革が行われました。", hint: "アンカラの戦いの敗北からの復興", category: "3.オスマン帝国" },
+      { front: "オスマン再建の柱①：首長が自ら名乗った称号と、定住民の支持を得るために登用したイスラーム法学者", back: "【首長】が【スルタン】を自称し、法学者【ウラマー】を登用して【イスラーム法】で統治\nこれにより非トルコ・非遊牧民から支持を得ました。", hint: "「ウ」から始まる法学者集団", category: "3.オスマン帝国" },
+      { front: "オスマン再建の柱②：騎士たちに徴税権を与える代わりに軍役義務を課したオスマン帝国独自の封建制", back: "【ティマール制 ＝ 封建制】\n騎士たちに【徴税権】を付与する代わりに軍役義務を負わせました。", hint: "セルジューク朝のイクター制に相当するオスマン帝国の制度", category: "3.オスマン帝国" },
+      { front: "オスマン帝国の領土であるアナトリアやバルカン半島が元々どの帝国の領域だったため、従来のマムルークの人材供給が困難だったか", back: "【ビザンツ帝国】\n元々キリスト教圏のビザンツ帝国領であったため、トルコ系遊牧民や奴隷兵の供給が困難でした。", hint: "キリスト教徒が多く住んでいた旧帝国", category: "3.オスマン帝国" },
+      { front: "旧ビザンツ帝国領のキリスト教徒の少年を選抜し、イスラーム教徒に改宗・合宿訓練させて登用した人材登用制度", back: "【デヴシルメ（制）】\nこの人材登用により、従来のトルコ系【部族】の【社会】は優位性を喪失しました。", hint: "「デ」から始まる6文字の制度", category: "3.オスマン帝国" },
+      { front: "デヴシルメ制によって育成された、スルタン直属の護衛・戦場の主力を担う常備歩兵軍団", back: "【イェニチェリ】\n【スルタン直属・護衛】および【戦場の主力】として強い忠誠心と戦闘力を誇りました。", hint: "「イェ」から始まる常備歩兵軍団", category: "3.オスマン帝国" },
+      { front: "デヴシルメ制によって育成された人材が、軍人以外に行政面で就いた役職", back: "【スルタンの秘書】・【行政官】・【官僚】・【宰相】\n皇妃や側室も非トルコ人から選ばれ、スルタン専制が強化されました。", hint: "帝国の政治中枢を担う文官職", category: "3.オスマン帝国" },
+      { front: "15世紀の再建後、1453年にオスマン帝国が陥落させてビザンツ帝国を滅ぼした都市", back: "【コンスタンティノープル攻略】\n【オスマン帝国の領土拡大】の象徴であり、ここを新たな都（イスタンブール）としました。", hint: "現在のイスタンブール", category: "3.オスマン帝国" },
+      { front: "1514年、イランのサファヴィー朝との領土争いであるチャルディラーンの戦いに勝利したオスマン皇帝", back: "【セリム1世】\n【チャルディラーンの戦い】でサファヴィー朝を破り、東方への領土拡大を進めました。", hint: "東征を進めて領土を急拡大させた皇帝", category: "3.オスマン帝国" },
+      { front: "1514年のチャルディラーンの戦い以降、主力となって「歩兵が強い時代は終わった」と変化させた新兵器", back: "【小銃・大砲】\n火器を主力とする火薬系兵器がメインとなり、歩兵と火砲が戦場の主役になりました。", hint: "従来の騎馬や白兵戦に代わる火薬兵器", category: "3.オスマン帝国" },
+      { front: "1517年にセリム1世が征服し、直接統治下に置くことでカリミー商人を含む紅海・インド洋貿易ルートを掌握した地域と王朝", back: "【マムルーク朝を征服】し、【エジプト・シリアを直接統治】\nこれにより地中海—紅海—インド洋の貿易ルートとカリミー商人を掌握しました。", hint: "地中海—紅海—インド洋ルートの要衝", category: "3.オスマン帝国" },
+      { front: "1529年に第一次ウィーン包囲を行い、オスマン帝国の全盛期を築いた皇帝", back: "【スレイマン1世】\n【領土拡張】を進め、1529年に【ウィーン包囲（第一次）】を行いました。", hint: "ハプスブルク家のカール5世と対決した大帝", category: "3.オスマン帝国" },
+      { front: "1529年の第一次ウィーン包囲でオスマン帝国が攻め込んだウィーンを本拠地としていたハプスブルク家の皇帝", back: "【カール5世】\nスペイン国王【カルロス1世】と同一人物で、オスマン帝国と激しく対立しました。", hint: "神聖ローマ皇帝兼スペイン王", category: "3.オスマン帝国" },
+      { front: "1538年、オスマン帝国艦隊がローマ教皇・ヴェネツィア・スペイン連合艦隊を破り、地中海を「トルコ人の湖」とした海戦", back: "【プレヴェザの海戦】\n【オスマン vs ローマ教皇】・イタリアの【貿易都市】【ヴェネツィア】・【スペイン】の連合艦隊を破りました。", hint: "イタリア東のアドリア海付近で行われた海戦", category: "3.オスマン帝国" },
+      { front: "15〜16世紀にヨーロッパが外洋へ乗り出した時代名称と、その原因を探る2つの視点", back: "【大航海時代】\n「なぜこの時代に？」を解き明かす2つの【仮説】（14世紀の危機と情報量の増大）が重要です。", hint: "ポルトガル・スペインが先駆けた時代", category: "4.大航海時代" },
+      { front: "14世紀のヨーロッパ危機において、ペスト大流行による人口減少・農地縮小・農民反乱から生じた経済・社会状況", back: "【構造不況】と【社会不安】\nモノの売り買いが減少し、教会や貴族への不信が高まりました。", hint: "モノの売り買いが減少し、社会が不安定化した状態", category: "4.大航海時代" },
+      { front: "12〜13世紀の安定を背景に、イスラーム世界経由で古典の翻訳やアジア技術が流入してヨーロッパで起きた変化", back: "【情報量】の【増大】\n【背景】にはイスラーム世界でのアラビア語訳からラテン語への翻訳があり、ルネサンスへ繋がりました。", hint: "知識や技術が蓄積・増加したこと", category: "4.大航海時代" },
+      { front: "ヨーロッパの海洋進出や社会革新を支えた、中国・イスラーム・ドイツ発祥の4大技術", back: "【羅針盤】（中国）・【三角帆】（イスラーム）・【火薬】（中国）・【活版印刷】（ドイツ）\nイスラーム世界経由などでヨーロッパへ伝わり大航海時代を支えました。", hint: "航海術・軍事・情報伝達を変えた4つの発明", category: "4.大航海時代" },
+      { front: "15世紀に火薬の軍事利用が実用化されたことで戦場の主役となった組み合わせと、増加した戦闘形態", back: "【火砲】の【実用化】により【歩兵＋火砲＝つよい】となり、【持久戦】・攻城戦が【増】加\n大規模兵力の動員が必要となり、騎馬の戦力的価値が低下しました。", hint: "大規模兵力の動員と経済力が必要になった", category: "4.大航海時代" },
+      { front: "14世紀までイタリア都市国家が握っていた地中海貿易において、15世紀半ば以降に貿易をコントロールするようになった勢力", back: "【地中海貿易の変化】：【オスマン帝国】影響下の商人集団が【貿易】をコントロール\n従来の中心は【ヴェネツィア】や【ジェノヴァ】でした。", hint: "これにより西欧諸国は新航路探索へ向かう", category: "4.大航海時代" },
+      { front: "西欧諸国が新たな航路探索に乗り出した際、新航路がビジネスとして成立する条件と狙い", back: "【航路探索】：【往復】してはじめて成立し、利益を【独占 or 占有】できること\n仲介商人を省いて直接アジアと結ぶ航路を目指しました。", hint: "片道だけでなく帰ってくることと、他国を排除すること", category: "4.大航海時代" },
+      { front: "ポルトガルの海洋進出を支援した人物と、1488年にディアスが到達したアフリカ南端の岬", back: "【エンリケ航海王子】・【喜望峰】\nアフリカ西岸で【イスラーム商人】たちと競合・協力しながら南下し、1488年に喜望峰へ到達しました。", hint: "現在の南アフリカ・ケープタウン付近の岬", category: "4.大航海時代" },
+      { front: "1498年にガマがアラブ人商人の水先案内で到達したインド西岸の都市と、利用した風・主な交易品", back: "【カリカット】・【モンスーンを利用したインド洋航路】・【香辛料や中国の陶磁器】\nこの航路開拓の延長で1543年に【後期倭寇】の首領と共に種子島へ現れます。", hint: "季節風とインド西岸の港町", category: "4.大航海時代" },
+      { front: "レコンキスタ完了の過程で1479年に成立した王国と、ポルトガルに対抗して採用したコロンブスの計画", back: "【レコンキスタ】を経て【スペイン王国】成立・【ジェノヴァ人のコロンブス】による【西回り航路】\nイザベル女王とフェルナンド王の結婚で成立し、アメリカ大陸との往復航路を発見しました。", hint: "イザベル女王とフェルナンド王の結婚で成立した国", category: "4.大航海時代" }
+    ];
+
+    /**
+     * ユーティリティ関数
+     */
+    const STORAGE_KEY = 'studyloop_app_data_v1';
+
+    function generateId(prefix = 'id') {
+      return `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    // 【 】で囲まれた語句を鮮やかな赤シート風ハイライトバッジに変換
+    function formatHighlightedText(text) {
+      const escaped = escapeHtml(text);
+      return escaped.replace(/【([^】]+)】/g, (match, inner) => {
+        return `<span class="highlight-term inline-block px-1.5 py-0.5 mx-0.5 my-0.5 rounded-md font-extrabold bg-rose-500/15 text-rose-600 dark:bg-rose-500/25 dark:text-rose-300 border border-rose-500/35 transition-colors">${inner}</span>`;
+      });
+    }
+
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      const colors = {
+        info: 'bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900',
+        success: 'bg-emerald-600 text-white',
+        warning: 'bg-amber-500 text-white',
+        error: 'bg-rose-600 text-white'
+      };
+      const icons = {
+        info: 'fa-circle-info',
+        success: 'fa-circle-check',
+        warning: 'fa-triangle-exclamation',
+        error: 'fa-circle-xmark'
+      };
+      toast.className = `${colors[type] || colors.info} px-4 py-2.5 rounded-xl shadow-lg text-xs sm:text-sm font-bold flex items-center gap-2 pointer-events-auto transform transition-all duration-300 translate-y-2 opacity-0`;
+      toast.innerHTML = `<i class="fa-solid ${icons[type] || icons.info}"></i><span>${escapeHtml(message)}</span>`;
+      container.appendChild(toast);
+
+      requestAnimationFrame(() => {
+        toast.classList.remove('translate-y-2', 'opacity-0');
+      });
+
+      setTimeout(() => {
+        toast.classList.add('translate-y-2', 'opacity-0');
+        setTimeout(() => toast.remove(), 300);
+      }, 2600);
+    }
+
+    // カスタムモーダルダイアログ（alert/confirm/promptの完全代替）
+    function showCustomDialog({ title, message, showInput = false, defaultValue = '', confirmText = 'OK', confirmDanger = false, showCancel = true }) {
+      return new Promise((resolve) => {
+        const dialog = document.getElementById('customDialog');
+        const titleEl = document.getElementById('dialogTitle');
+        const msgEl = document.getElementById('dialogMessage');
+        const inputWrap = document.getElementById('dialogInputWrap');
+        const inputEl = document.getElementById('dialogInput');
+        const cancelBtn = document.getElementById('dialogCancelBtn');
+        const confirmBtn = document.getElementById('dialogConfirmBtn');
+
+        titleEl.textContent = title;
+        msgEl.textContent = message;
+
+        if (showInput) {
+          inputWrap.classList.remove('hidden');
+          inputEl.value = defaultValue;
+        } else {
+          inputWrap.classList.add('hidden');
+        }
+
+        cancelBtn.classList.toggle('hidden', !showCancel);
+        confirmBtn.textContent = confirmText;
+        confirmBtn.className = confirmDanger
+          ? 'px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white transition'
+          : 'px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition';
+
+        dialog.classList.remove('hidden');
+        if (showInput) setTimeout(() => inputEl.focus(), 50);
+
+        const cleanup = () => {
+          dialog.classList.add('hidden');
+          confirmBtn.onclick = null;
+          cancelBtn.onclick = null;
+          inputEl.onkeydown = null;
+        };
+
+        confirmBtn.onclick = () => {
+          const val = showInput ? inputEl.value.trim() : true;
+          cleanup();
+          resolve(val);
+        };
+
+        cancelBtn.onclick = () => {
+          cleanup();
+          resolve(null);
+        };
+
+        inputEl.onkeydown = (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            confirmBtn.click();
+          }
+        };
+      });
+    }
+
+    /**
+     * アプリケーション状態管理
+     */
+    let appData = {
+      theme: 'light',
+      currentDeckId: '',
+      decks: [],
+      blockSessions: {} // deckId -> blockSessionObject
+    };
+
+    // 現在の学習画面の一時状態
+    let studyState = {
+      mode: 'block5', // 'block5' | 'weakness' | 'all'
+      isFlipped: false,
+      redSheetMode: false,
+      // weakness / all 用のシンプルキュー
+      simpleQueue: [],
+      simpleIndex: 0,
+      simpleTotal: 0,
+      isShuffled: false,
+      selectedCategory: 'ALL'
+    };
+
+    function createInitialData() {
+      const deckId = 'deck_world_history_default';
+      const cards = PRESET_WORLD_HISTORY_CARDS.map((item, idx) => ({
+        id: `wh_card_${idx + 1}`,
+        front: item.front,
+        back: item.back,
+        hint: item.hint || '',
+        category: item.category || '一般',
+        stats: {
+          attempts: 0,
+          correct: 0,
+          wrong: 0,
+          streak: 0,
+          lastStudied: null
+        }
+      }));
+
+      return {
+        theme: window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
+        currentDeckId: deckId,
+        decks: [
+          {
+            id: deckId,
+            title: '世界史：イスラーム世界の変容と大航海時代（赤文字50問）',
+            description: 'ノート赤字＆記述対策を完全網羅したプリセットデッキ',
+            createdAt: Date.now(),
+            cards
+          }
+        ],
+        blockSessions: {}
+      };
+    }
+
+    function loadAppData() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && Array.isArray(parsed.decks) && parsed.decks.length > 0) {
+            appData = parsed;
+            if (!appData.blockSessions) appData.blockSessions = {};
+            if (!appData.decks.some(d => d.id === appData.currentDeckId)) {
+              appData.currentDeckId = appData.decks[0].id;
+            }
+            return;
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load storage:', e);
+      }
+      appData = createInitialData();
+      saveAppData();
+    }
+
+    function saveAppData() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+      } catch (e) {
+        console.error('Failed to save storage:', e);
+      }
+    }
+
+    function getCurrentDeck() {
+      return appData.decks.find(d => d.id === appData.currentDeckId) || appData.decks[0];
+    }
+
+    function applyTheme() {
+      const htmlEl = document.documentElement;
+      const iconEl = document.getElementById('themeIcon');
+      if (appData.theme === 'dark') {
+        htmlEl.classList.add('dark');
+        htmlEl.classList.remove('light');
+        iconEl.className = 'fa-solid fa-sun text-amber-400';
+      } else {
+        htmlEl.classList.remove('dark');
+        htmlEl.classList.add('light');
+        iconEl.className = 'fa-solid fa-moon';
+      }
+    }
+
+    /**
+     * =========================================================================
+     * 5問1セット・徹底定着モード（コアアルゴリズム）
+     * =========================================================================
+     */
+    function initOrRepairBlockSession(deck, forceReset = false) {
+      const existing = appData.blockSessions[deck.id];
+      const validIds = new Set(deck.cards.map(c => c.id));
+
+      if (!forceReset && existing && Array.isArray(existing.allCardIds)) {
+        // 削除されたカードを除外し、新規追加されたカードがあれば末尾に追加
+        const filteredAll = existing.allCardIds.filter(id => validIds.has(id));
+        const existingSet = new Set(filteredAll);
+        const newlyAdded = deck.cards.filter(c => !existingSet.has(c.id)).map(c => c.id);
+
+        if (filteredAll.length > 0) {
+          existing.allCardIds = [...filteredAll, ...newlyAdded];
+          existing.queue = (existing.queue || []).filter(id => validIds.has(id));
+          existing.currentBlockWrong = (existing.currentBlockWrong || []).filter(id => validIds.has(id));
+          existing.carryOverToNext = (existing.carryOverToNext || []).filter(id => validIds.has(id));
+          existing.incomingCarryOver = (existing.incomingCarryOver || []).filter(id => validIds.has(id));
+
+          // もし以前完了状態だったのに新規カードが追加された場合は再開可能にする
+          if (existing.phase === 'completed' && newlyAdded.length > 0) {
+            const totalBlocks = Math.ceil(existing.allCardIds.length / 5);
+            const nextBlockIdx = Math.floor(filteredAll.length / 5);
+            existing.currentBlockIndex = nextBlockIdx;
+            existing.phase = 'learning';
+            existing.queue = existing.allCardIds.slice(nextBlockIdx * 5, (nextBlockIdx + 1) * 5);
+          }
+          appData.blockSessions[deck.id] = existing;
+          saveAppData();
+          return existing;
+        }
+      }
+
+      const allCardIds = deck.cards.map(c => c.id);
+      const firstBlock = allCardIds.slice(0, 5);
+      const session = {
+        deckId: deck.id,
+        allCardIds,
+        blockSize: 5,
+        currentBlockIndex: 0,
+        phase: allCardIds.length === 0 ? 'completed' : 'learning', // 'learning' | 'review' | 'final_review' | 'completed'
+        queue: firstBlock,
+        currentBlockLearnTotal: firstBlock.length,
+        currentReviewTotal: firstBlock.length,
+        currentBlockWrong: [],
+        carryOverToNext: [],
+        incomingCarryOver: []
+      };
+
+      appData.blockSessions[deck.id] = session;
+      saveAppData();
+      return session;
+    }
+
+    function advanceBlockSession(deck, isCorrect) {
+      const session = initOrRepairBlockSession(deck, false);
+      if (session.phase === 'completed' || session.queue.length === 0) return;
+
+      const currentCardId = session.queue.shift();
+
+      if (session.phase === 'learning') {
+        if (!isCorrect) {
+          if (!session.currentBlockWrong.includes(currentCardId)) {
+            session.currentBlockWrong.push(currentCardId);
+          }
+        }
+
+        // 本編5問が終わったら振り返り判定へ
+        if (session.queue.length === 0) {
+          const combinedReview = [];
+          const seen = new Set();
+          [...session.incomingCarryOver, ...session.currentBlockWrong].forEach(id => {
+            if (!seen.has(id)) {
+              seen.add(id);
+              combinedReview.push(id);
+            }
+          });
+
+          session.incomingCarryOver = [];
+          session.currentBlockWrong = [];
+
+          if (combinedReview.length > 0) {
+            session.phase = 'review';
+            session.queue = combinedReview;
+            session.currentReviewTotal = combinedReview.length;
+          } else {
+            moveToNextBlockOrFinish(session);
+          }
+        }
+      } else if (session.phase === 'review') {
+        if (!isCorrect) {
+          // 振り返りでも間違えた問題は「次の5問セットの振り返り」へ繰り越し！
+          if (!session.carryOverToNext.includes(currentCardId)) {
+            session.carryOverToNext.push(currentCardId);
+          }
+        }
+
+        if (session.queue.length === 0) {
+          moveToNextBlockOrFinish(session);
+        }
+      } else if (session.phase === 'final_review') {
+        if (!isCorrect) {
+          // 最終振り返りループでは、全問正解するまで末尾に再追加してループ
+          session.queue.push(currentCardId);
+        }
+        if (session.queue.length === 0) {
+          session.phase = 'completed';
+        }
+      }
+
+      appData.blockSessions[deck.id] = session;
+      saveAppData();
+    }
+
+    function moveToNextBlockOrFinish(session) {
+      const nextBlockIndex = session.currentBlockIndex + 1;
+      const totalBlocks = Math.ceil(session.allCardIds.length / session.blockSize);
+
+      if (nextBlockIndex < totalBlocks) {
+        session.currentBlockIndex = nextBlockIndex;
+        session.phase = 'learning';
+        const nextSlice = session.allCardIds.slice(
+          nextBlockIndex * session.blockSize,
+          (nextBlockIndex + 1) * session.blockSize
+        );
+        session.queue = nextSlice;
+        session.currentBlockLearnTotal = nextSlice.length;
+        session.incomingCarryOver = [...session.carryOverToNext];
+        session.carryOverToNext = [];
+      } else {
+        // 最後のセット終了時：未クリアの繰り越し問題が残っている場合は最終振り返りループへ
+        if (session.carryOverToNext.length > 0) {
+          session.phase = 'final_review';
+          session.queue = [...session.carryOverToNext];
+          session.currentReviewTotal = session.queue.length;
+          session.carryOverToNext = [];
+        } else {
+          session.phase = 'completed';
+          session.queue = [];
+        }
+      }
+    }
+
+    /**
+     * =========================================================================
+     * 苦手モード / 全問モード セッション構築
+     * =========================================================================
+     */
+    function buildSimpleSession(deck) {
+      studyState.isFlipped = false;
+      if (studyState.mode === 'weakness') {
+        // 苦手抽出：一度でも間違えた OR 未習熟（attempts === 0）を優先度順にソート
+        const candidates = deck.cards.filter(c => c.stats.wrong > 0 || c.stats.attempts === 0);
+        candidates.sort((a, b) => {
+          const accA = a.stats.attempts === 0 ? -1 : a.stats.correct / a.stats.attempts;
+          const accB = b.stats.attempts === 0 ? -1 : b.stats.correct / b.stats.attempts;
+          // 誤答があるものを最優先、次に正答率低い順、次に未学習
+          if (a.stats.wrong > 0 && b.stats.wrong === 0) return -1;
+          if (b.stats.wrong > 0 && a.stats.wrong === 0) return 1;
+          if (accA !== accB) return accA - accB;
+          return b.stats.wrong - a.stats.wrong;
+        });
+
+        studyState.simpleQueue = candidates.map(c => c.id);
+        studyState.simpleIndex = 0;
+        studyState.simpleTotal = studyState.simpleQueue.length;
+      } else if (studyState.mode === 'all') {
+        let filtered = deck.cards;
+        if (studyState.selectedCategory !== 'ALL') {
+          filtered = filtered.filter(c => c.category === studyState.selectedCategory);
+        }
+        let ids = filtered.map(c => c.id);
+        if (studyState.isShuffled) {
+          for (let i = ids.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [ids[i], ids[j]] = [ids[j], ids[i]];
+          }
+        }
+        studyState.simpleQueue = ids;
+        studyState.simpleIndex = 0;
+        studyState.simpleTotal = ids.length;
+      }
+    }
+
+    /**
+     * =========================================================================
+     * UI描画更新
+     * =========================================================================
+     */
+    function renderDeckSelector() {
+      const selector = document.getElementById('deckSelector');
+      selector.innerHTML = appData.decks.map(d => {
+        const selected = d.id === appData.currentDeckId ? 'selected' : '';
+        return `<option value="${escapeHtml(d.id)}" ${selected}>${escapeHtml(d.title)} (${d.cards.length}問)</option>`;
+      }).join('');
+    }
+
+    function renderStudyView() {
+      const deck = getCurrentDeck();
+      const stageEl = document.getElementById('flashcardStage');
+      const completeEl = document.getElementById('studyCompleteView');
+
+      // モードボタンの見た目更新
+      document.querySelectorAll('.mode-btn').forEach(btn => {
+        const isSelected = btn.dataset.mode === studyState.mode;
+        if (isSelected) {
+          btn.className = 'mode-btn p-3 rounded-xl border-2 text-left transition flex items-start gap-3 border-indigo-600 bg-indigo-50/70 dark:bg-indigo-950/40 dark:border-indigo-500';
+        } else {
+          btn.className = 'mode-btn p-3 rounded-xl border-2 text-left transition flex items-start gap-3 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700';
+        }
+      });
+
+      // サブコントロール表示切替
+      document.getElementById('subControlsBlock5').classList.toggle('hidden', studyState.mode !== 'block5');
+      document.getElementById('subControlsWeakness').classList.toggle('hidden', studyState.mode !== 'weakness');
+      document.getElementById('subControlsAll').classList.toggle('hidden', studyState.mode !== 'all');
+
+      let activeCard = null;
+
+      if (studyState.mode === 'block5') {
+        const session = initOrRepairBlockSession(deck, false);
+        const totalBlocks = Math.max(1, Math.ceil(session.allCardIds.length / session.blockSize));
+        const currentSetNum = session.currentBlockIndex + 1;
+        const phaseBadge = document.getElementById('blockPhaseBadge');
+        const carryBadge = document.getElementById('blockCarryOverBadge');
+        const carryCountEl = document.getElementById('carryOverCount');
+
+        // 繰り越し数の計算（learning中はincomingCarryOver、review中はcarryOverToNext）
+        const pendingCarry = session.phase === 'learning'
+          ? session.incomingCarryOver.length
+          : session.carryOverToNext.length;
+
+        if (pendingCarry > 0) {
+          carryBadge.classList.remove('hidden');
+          carryCountEl.textContent = pendingCarry;
+        } else {
+          carryBadge.classList.add('hidden');
+        }
+
+        if (session.phase === 'completed' || deck.cards.length === 0) {
+          stageEl.classList.add('hidden');
+          completeEl.classList.remove('hidden');
+          document.getElementById('completeTitle').textContent = deck.cards.length === 0
+            ? 'デッキに問題がありません'
+            : '5問1セット・全範囲を完全制覇しました！';
+          document.getElementById('completeMessage').textContent = deck.cards.length === 0
+            ? '「問題追加・管理」タブから新しい問題を追加してください。'
+            : '繰り越し問題を含め、すべてのセットをクリアしました！記憶の定着度が大幅にアップしています。';
+          document.getElementById('progressLeftLabel').textContent = '全セット完了';
+          document.getElementById('progressRightLabel').textContent = `${deck.cards.length} / ${deck.cards.length} 問`;
+          document.getElementById('studyProgressBar').style.width = '100%';
+          return;
+        }
+
+        stageEl.classList.remove('hidden');
+        completeEl.classList.add('hidden');
+
+        if (session.phase === 'learning') {
+          const doneInBlock = session.currentBlockLearnTotal - session.queue.length + 1;
+          phaseBadge.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800 dark:bg-indigo-900/70 dark:text-indigo-200';
+          phaseBadge.innerHTML = `<i class="fa-solid fa-play-circle"></i> セット ${currentSetNum}/${totalBlocks} ・ 本編学習中 (${doneInBlock}/${session.currentBlockLearnTotal}問目)`;
+        } else if (session.phase === 'review') {
+          phaseBadge.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 dark:bg-rose-900/70 dark:text-rose-200';
+          phaseBadge.innerHTML = `<i class="fa-solid fa-rotate-left"></i> セット ${currentSetNum}/${totalBlocks} ・ 振り返り復習中 (残り ${session.queue.length}問)`;
+        } else if (session.phase === 'final_review') {
+          phaseBadge.className = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 dark:bg-amber-900/70 dark:text-amber-200';
+          phaseBadge.innerHTML = `<i class="fa-solid fa-fire"></i> 最終振り返りループ (残り ${session.queue.length}問)`;
+        }
+
+        // プログレス計算
+        const completedBlocksCards = session.currentBlockIndex * session.blockSize;
+        const pct = Math.min(100, Math.round((completedBlocksCards / Math.max(1, session.allCardIds.length)) * 100));
+        document.getElementById('progressLeftLabel').textContent = `セット ${currentSetNum} / ${totalBlocks} 進行中`;
+        document.getElementById('progressRightLabel').textContent = `完了目安 ${completedBlocksCards} / ${session.allCardIds.length} 問`;
+        document.getElementById('studyProgressBar').style.width = `${pct}%`;
+
+        activeCard = deck.cards.find(c => c.id === session.queue[0]);
+
+      } else {
+        // weakness または all モード
+        if (studyState.mode === 'weakness') {
+          document.getElementById('weaknessSummaryText').innerHTML =
+            `<i class="fa-solid fa-circle-exclamation mr-1"></i>抽出された苦手・未習熟問題: ${studyState.simpleTotal}問`;
+        } else {
+          // カテゴリドロップダウン同期
+          const catSelect = document.getElementById('studyCategoryFilter');
+          const categories = ['ALL', ...new Set(deck.cards.map(c => c.category).filter(Boolean))];
+          catSelect.innerHTML = categories.map(cat => {
+            const label = cat === 'ALL' ? `すべてのカテゴリ (${deck.cards.length}問)` : cat;
+            return `<option value="${escapeHtml(cat)}" ${cat === studyState.selectedCategory ? 'selected' : ''}>${escapeHtml(label)}</option>`;
+          }).join('');
+        }
+
+        if (studyState.simpleIndex >= studyState.simpleQueue.length) {
+          stageEl.classList.add('hidden');
+          completeEl.classList.remove('hidden');
+          if (studyState.mode === 'weakness' && studyState.simpleTotal === 0) {
+            document.getElementById('completeTitle').textContent = '現在、苦手な問題はありません！';
+            document.getElementById('completeMessage').textContent = 'すべての問題が学習済みかつ正解できています。素晴らしい仕上がりです！';
+          } else {
+            document.getElementById('completeTitle').textContent = '演習セッション完了！';
+            document.getElementById('completeMessage').textContent = `全 ${studyState.simpleTotal} 問の演習が完了しました。`;
+          }
+          document.getElementById('progressLeftLabel').textContent = '演習完了';
+          document.getElementById('progressRightLabel').textContent = `${studyState.simpleTotal} / ${studyState.simpleTotal} 問`;
+          document.getElementById('studyProgressBar').style.width = '100%';
+          return;
+        }
+
+        stageEl.classList.remove('hidden');
+        completeEl.classList.add('hidden');
+
+        const currentNum = studyState.simpleIndex + 1;
+        const pct = Math.round((studyState.simpleIndex / Math.max(1, studyState.simpleTotal)) * 100);
+        document.getElementById('progressLeftLabel').textContent = studyState.mode === 'weakness' ? '苦手集中トレーニング' : '演習進捗';
+        document.getElementById('progressRightLabel').textContent = `${currentNum} / ${studyState.simpleTotal} 問`;
+        document.getElementById('studyProgressBar').style.width = `${pct}%`;
+
+        const cardId = studyState.simpleQueue[studyState.simpleIndex];
+        activeCard = deck.cards.find(c => c.id === cardId);
+      }
+
+      if (!activeCard) return;
+
+      // カード内容描画
+      const cardIndexInDeck = deck.cards.findIndex(c => c.id === activeCard.id) + 1;
+      document.getElementById('cardNumberLabel').textContent = `#${cardIndexInDeck}`;
+      document.getElementById('cardCategoryBadge').textContent = activeCard.category || '一般';
+      document.getElementById('cardFrontText').textContent = activeCard.front;
+      document.getElementById('cardBackText').innerHTML = formatHighlightedText(activeCard.back);
+
+      // ヒント制御
+      const hintBox = document.getElementById('cardHintBox');
+      const hintBtn = document.getElementById('btnShowHint');
+      hintBox.classList.add('hidden');
+      if (activeCard.hint && activeCard.hint.trim()) {
+        hintBtn.classList.remove('hidden');
+        document.getElementById('cardHintText').textContent = activeCard.hint;
+      } else {
+        hintBtn.classList.add('hidden');
+      }
+
+      // 戦績バッジ描画
+      const statsBadge = document.getElementById('cardStatsBadge');
+      const st = activeCard.stats;
+      if (st.attempts === 0) {
+        statsBadge.className = 'px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400';
+        statsBadge.textContent = '未学習';
+      } else {
+        const acc = Math.round((st.correct / st.attempts) * 100);
+        if (st.streak >= 2) {
+          statsBadge.className = 'px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300';
+          statsBadge.textContent = `連続${st.streak}回正解・定着済み (${acc}%)`;
+        } else if (acc < 60) {
+          statsBadge.className = 'px-2.5 py-1 rounded-lg text-xs font-bold bg-rose-100 dark:bg-rose-950/70 text-rose-700 dark:text-rose-300';
+          statsBadge.textContent = `${st.attempts}回中${st.correct}回正解・要復習 (${acc}%)`;
+        } else {
+          statsBadge.className = 'px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-100 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300';
+          statsBadge.textContent = `正答率 ${acc}% (${st.correct}/${st.attempts}回)`;
+        }
+      }
+
+      // フリップ状態反映
+      const inner = document.getElementById('flashcardInner');
+      inner.classList.toggle('rotate-y-180', studyState.isFlipped);
+    }
+
+    function handleJudge(isCorrect) {
+      const deck = getCurrentDeck();
+      let currentCard = null;
+
+      if (studyState.mode === 'block5') {
+        const session = appData.blockSessions[deck.id];
+        if (!session || session.phase === 'completed' || session.queue.length === 0) return;
+        currentCard = deck.cards.find(c => c.id === session.queue[0]);
+      } else {
+        if (studyState.simpleIndex >= studyState.simpleQueue.length) return;
+        currentCard = deck.cards.find(c => c.id === studyState.simpleQueue[studyState.simpleIndex]);
+      }
+
+      if (!currentCard) return;
+
+      // 統計データ更新
+      currentCard.stats.attempts += 1;
+      currentCard.stats.lastStudied = Date.now();
+      if (isCorrect) {
+        currentCard.stats.correct += 1;
+        currentCard.stats.streak += 1;
+      } else {
+        currentCard.stats.wrong += 1;
+        currentCard.stats.streak = 0;
+      }
+
+      // モードごとの進行処理
+      studyState.isFlipped = false;
+      if (studyState.mode === 'block5') {
+        advanceBlockSession(deck, isCorrect);
+      } else {
+        studyState.simpleIndex += 1;
+        saveAppData();
+      }
+
+      renderStudyView();
+    }
+
+    /**
+     * =========================================================================
+     * 成績・履歴ダッシュボード描画
+     * =========================================================================
+     */
+    function renderStatsView() {
+      const deck = getCurrentDeck();
+      const total = deck.cards.length;
+      const studied = deck.cards.filter(c => c.stats.attempts > 0).length;
+      const mastered = deck.cards.filter(c => c.stats.streak >= 2).length;
+
+      let totalAttempts = 0;
+      let totalCorrect = 0;
+      deck.cards.forEach(c => {
+        totalAttempts += c.stats.attempts;
+        totalCorrect += c.stats.correct;
+      });
+      const avgAcc = totalAttempts === 0 ? 0 : Math.round((totalCorrect / totalAttempts) * 100);
+
+      document.getElementById('statTotalCards').textContent = `${total}問`;
+      document.getElementById('statStudiedCards').textContent = `${studied}問`;
+      document.getElementById('statMasteredCards').textContent = `${mastered}問`;
+      document.getElementById('statAvgAccuracy').textContent = `${avgAcc}%`;
+
+      // カテゴリ別正答率
+      const catMap = {};
+      deck.cards.forEach(c => {
+        const cat = c.category || '一般';
+        if (!catMap[cat]) catMap[cat] = { total: 0, attempts: 0, correct: 0 };
+        catMap[cat].total += 1;
+        catMap[cat].attempts += c.stats.attempts;
+        catMap[cat].correct += c.stats.correct;
+      });
+
+      const catListEl = document.getElementById('categoryStatsList');
+      const catEntries = Object.entries(catMap);
+      if (catEntries.length === 0) {
+        catListEl.innerHTML = `<p class="text-xs text-slate-400">問題がありません。</p>`;
+      } else {
+        catListEl.innerHTML = catEntries.map(([cat, info]) => {
+          const pct = info.attempts === 0 ? 0 : Math.round((info.correct / info.attempts) * 100);
+          return `
+            <div>
+              <div class="flex justify-between text-xs font-bold mb-1">
+                <span>${escapeHtml(cat)} <span class="text-slate-400 font-normal">(${info.total}問)</span></span>
+                <span class="text-indigo-600 dark:text-indigo-400">${info.attempts === 0 ? '未学習' : pct + '%'}</span>
+              </div>
+              <div class="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                <div class="h-full bg-indigo-500 rounded-full" style="width: ${pct}%"></div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // 苦手ランキング
+      const weakCards = deck.cards
+        .filter(c => c.stats.wrong > 0)
+        .sort((a, b) => {
+          const accA = a.stats.correct / a.stats.attempts;
+          const accB = b.stats.correct / b.stats.attempts;
+          if (accA !== accB) return accA - accB;
+          return b.stats.wrong - a.stats.wrong;
+        })
+        .slice(0, 15);
+
+      const rankEl = document.getElementById('weaknessRankingList');
+      if (weakCards.length === 0) {
+        rankEl.innerHTML = `<p class="py-6 text-center text-xs sm:text-sm text-slate-500 dark:text-slate-400">間違えた記録のある問題はまだありません！</p>`;
+      } else {
+        rankEl.innerHTML = weakCards.map((c, idx) => {
+          const acc = Math.round((c.stats.correct / c.stats.attempts) * 100);
+          return `
+            <div class="py-3 flex items-start justify-between gap-3">
+              <div class="flex items-start gap-2.5">
+                <span class="w-6 h-6 rounded-lg bg-rose-100 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 font-extrabold text-xs flex items-center justify-center shrink-0 mt-0.5">${idx + 1}</span>
+                <div>
+                  <p class="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100">${escapeHtml(c.front)}</p>
+                  <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">${formatHighlightedText(c.back.split('\n')[0])}</p>
+                </div>
+              </div>
+              <div class="text-right shrink-0">
+                <span class="inline-block px-2 py-0.5 rounded-md text-xs font-extrabold bg-rose-500/15 text-rose-600 dark:text-rose-400">
+                  正答率 ${acc}%
+                </span>
+                <p class="text-[11px] text-slate-400 mt-0.5">誤答 ${c.stats.wrong}回 / 計${c.stats.attempts}回</p>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    /**
+     * =========================================================================
+     * 管理・アップデート画面描画
+     * =========================================================================
+     */
+    function renderManageView() {
+      const deck = getCurrentDeck();
+      document.getElementById('manageDeckTitle').textContent = deck.title;
+      document.getElementById('manageDeckDesc').textContent = deck.description || '問題の追加・編集・AI一括インポート・バックアップが行えます';
+
+      const query = document.getElementById('manageSearchInput').value.trim().toLowerCase();
+      const filtered = deck.cards.filter(c => {
+        if (!query) return true;
+        return (
+          c.front.toLowerCase().includes(query) ||
+          c.back.toLowerCase().includes(query) ||
+          (c.category && c.category.toLowerCase().includes(query))
+        );
+      });
+
+      document.getElementById('manageCardCount').textContent = filtered.length;
+      const listEl = document.getElementById('manageCardList');
+
+      if (filtered.length === 0) {
+        listEl.innerHTML = `<p class="py-8 text-center text-xs text-slate-400">該当する問題がありません。</p>`;
+        return;
+      }
+
+      listEl.innerHTML = filtered.map((c, idx) => {
+        return `
+          <div class="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="space-y-1 flex-1 min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-[11px] font-mono font-bold text-slate-400">#${idx + 1}</span>
+                <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300">${escapeHtml(c.category || '一般')}</span>
+              </div>
+              <p class="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100">${escapeHtml(c.front)}</p>
+              <div class="text-xs text-slate-600 dark:text-slate-300 whitespace-pre-line">${formatHighlightedText(c.back)}</div>
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+              <button type="button" onclick="startEditCard('${c.id}')" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:bg-indigo-50 dark:hover:bg-indigo-950 text-indigo-600 dark:text-indigo-400 transition">
+                <i class="fa-solid fa-pen"></i> 編集
+              </button>
+              <button type="button" onclick="deleteCard('${c.id}')" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:bg-rose-50 dark:hover:bg-rose-950 text-rose-600 dark:text-rose-400 transition">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // グローバル公開（リストボタン用）
+    window.startEditCard = function(cardId) {
+      const deck = getCurrentDeck();
+      const card = deck.cards.find(c => c.id === cardId);
+      if (!card) return;
+
+      document.getElementById('editCardId').value = card.id;
+      document.getElementById('inputCardFront').value = card.front;
+      document.getElementById('inputCardBack').value = card.back;
+      document.getElementById('inputCardHint').value = card.hint || '';
+      document.getElementById('inputCardCategory').value = card.category || '';
+
+      document.getElementById('editorFormTitle').innerHTML = `<i class="fa-solid fa-pen-to-square text-amber-500"></i> 問題を編集中`;
+      document.getElementById('btnSubmitCard').innerHTML = `<i class="fa-solid fa-check mr-1.5"></i>変更を保存する`;
+      document.getElementById('btnCancelEdit').classList.remove('hidden');
+      document.getElementById('cardEditorForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+
+    window.deleteCard = async function(cardId) {
+      const ok = await showCustomDialog({
+        title: '問題の削除',
+        message: 'この問題をデッキから削除しますか？（この操作は取り消せません）',
+        confirmText: '削除する',
+        confirmDanger: true
+      });
+      if (!ok) return;
+
+      const deck = getCurrentDeck();
+      deck.cards = deck.cards.filter(c => c.id !== cardId);
+      saveAppData();
+      renderDeckSelector();
+      renderManageView();
+      showToast('問題を削除しました', 'info');
+    };
+
+    /**
+     * 一括インポートパーサー（パイプ区切り / タブ区切り / JSON配列対応）
+     */
+    function parseBulkText(rawText) {
+      const trimmed = rawText.trim();
+      if (!trimmed) return [];
+
+      // JSON配列形式の判定
+      if (trimmed.startsWith('[')) {
+        try {
+          const arr = JSON.parse(trimmed);
+          if (Array.isArray(arr)) {
+            return arr
+              .filter(item => item && (item.front || item.question) && (item.back || item.answer))
+              .map(item => ({
+                front: String(item.front || item.question).trim(),
+                back: String(item.back || item.answer).replace(/\\n/g, '\n').trim(),
+                hint: String(item.hint || '').trim(),
+                category: String(item.category || '一般').trim()
+              }));
+          }
+        } catch (e) {
+          // JSONパース失敗時は行ベース処理へフォールバック
+        }
+      }
+
+      // 行ごとのパイプ（|）またはタブ（\t）区切り処理
+      const lines = trimmed.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      const results = [];
+
+      for (const line of lines) {
+        const delimiter = line.includes('|') ? '|' : (line.includes('\t') ? '\t' : null);
+        if (!delimiter) continue;
+
+        const parts = line.split(delimiter).map(p => p.trim());
+        if (parts.length >= 2 && parts[0] && parts[1]) {
+          results.push({
+            front: parts[0],
+            back: parts[1].replace(/\\n/g, '\n'),
+            hint: parts[2] || '',
+            category: parts[3] || '一般'
+          });
+        }
+      }
+      return results;
+    }
+
+    /**
+     * =========================================================================
+     * イベントリスナー初期化
+     * =========================================================================
+     */
+    function bindEvents() {
+      // テーマ切り替え
+      document.getElementById('btnToggleTheme').addEventListener('click', () => {
+        appData.theme = appData.theme === 'dark' ? 'light' : 'dark';
+        applyTheme();
+        saveAppData();
+      });
+
+      // デッキ切り替え
+      document.getElementById('deckSelector').addEventListener('change', (e) => {
+        appData.currentDeckId = e.target.value;
+        studyState.selectedCategory = 'ALL';
+        studyState.isFlipped = false;
+        saveAppData();
+        if (studyState.mode !== 'block5') buildSimpleSession(getCurrentDeck());
+        renderAllViews();
+      });
+
+      // タブ切り替え
+      document.querySelectorAll('.nav-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          const target = tab.dataset.tab;
+          document.querySelectorAll('.nav-tab').forEach(t => {
+            const active = t.dataset.tab === target;
+            t.className = active
+              ? 'nav-tab active-tab flex-1 sm:flex-none px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400 flex items-center justify-center gap-2 whitespace-nowrap transition'
+              : 'nav-tab flex-1 sm:flex-none px-4 py-2.5 text-xs sm:text-sm font-semibold border-b-2 border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 flex items-center justify-center gap-2 whitespace-nowrap transition';
+          });
+
+          document.getElementById('tab-study').classList.toggle('hidden', target !== 'study');
+          document.getElementById('tab-stats').classList.toggle('hidden', target !== 'stats');
+          document.getElementById('tab-manage').classList.toggle('hidden', target !== 'manage');
+
+          if (target === 'study') renderStudyView();
+          if (target === 'stats') renderStatsView();
+          if (target === 'manage') renderManageView();
+        });
+      });
+
+      // 学習モード切り替え
+      document.querySelectorAll('.mode-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          studyState.mode = btn.dataset.mode;
+          studyState.isFlipped = false;
+          if (studyState.mode !== 'block5') {
+            buildSimpleSession(getCurrentDeck());
+          }
+          renderStudyView();
+        });
+      });
+
+      // 5問1セットリセット
+      document.getElementById('btnResetBlockSession').addEventListener('click', async () => {
+        const ok = await showCustomDialog({
+          title: '5問1セット進捗のリセット',
+          message: '現在のセット進行状況をリセットして、セット1（1問目）からやり直しますか？\n（※各問題の累計正答率データは保持されます）',
+          confirmText: '最初からやり直す'
+        });
+        if (!ok) return;
+        initOrRepairBlockSession(getCurrentDeck(), true);
+        studyState.isFlipped = false;
+        renderStudyView();
+        showToast('セット1から再開しました', 'info');
+      });
+
+      // 全問モードサブ操作
+      document.getElementById('studyCategoryFilter').addEventListener('change', (e) => {
+        studyState.selectedCategory = e.target.value;
+        buildSimpleSession(getCurrentDeck());
+        renderStudyView();
+      });
+
+      document.getElementById('btnToggleShuffle').addEventListener('click', () => {
+        studyState.isShuffled = !studyState.isShuffled;
+        document.getElementById('shuffleIcon').className = studyState.isShuffled ? 'fa-solid fa-shuffle text-indigo-500' : 'fa-solid fa-arrow-down-1-9';
+        document.getElementById('shuffleLabel').textContent = studyState.isShuffled ? '出題順: シャッフル' : '出題順: 順番通り';
+        buildSimpleSession(getCurrentDeck());
+        renderStudyView();
+      });
+
+      document.getElementById('btnRestartSimpleSession').addEventListener('click', () => {
+        buildSimpleSession(getCurrentDeck());
+        renderStudyView();
+      });
+
+      document.getElementById('btnReloadWeakness').addEventListener('click', () => {
+        buildSimpleSession(getCurrentDeck());
+        renderStudyView();
+        showToast('最新の履歴から苦手問題を抽出しました', 'info');
+      });
+
+      // 完了画面ボタン
+      document.getElementById('btnCompleteRestart').addEventListener('click', () => {
+        if (studyState.mode === 'block5') {
+          initOrRepairBlockSession(getCurrentDeck(), true);
+        } else {
+          buildSimpleSession(getCurrentDeck());
+        }
+        renderStudyView();
+      });
+
+      document.getElementById('btnCompleteGoWeakness').addEventListener('click', () => {
+        studyState.mode = 'weakness';
+        buildSimpleSession(getCurrentDeck());
+        renderStudyView();
+      });
+
+      // カードフリップ＆ヒント
+      document.getElementById('flashcardInner').addEventListener('click', (e) => {
+        if (e.target.closest('#btnShowHint')) return;
+        studyState.isFlipped = !studyState.isFlipped;
+        document.getElementById('flashcardInner').classList.toggle('rotate-y-180', studyState.isFlipped);
+      });
+
+      document.getElementById('btnShowHint').addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.getElementById('cardHintBox').classList.toggle('hidden');
+      });
+
+      // 赤シート隠すモード切替
+      document.getElementById('btnToggleRedSheet').addEventListener('click', () => {
+        studyState.redSheetMode = !studyState.redSheetMode;
+        const backContainer = document.getElementById('cardBackContainer');
+        const label = document.getElementById('redSheetLabel');
+        const icon = document.getElementById('redSheetIcon');
+
+        if (studyState.redSheetMode) {
+          backContainer.classList.add('red-sheet-hidden');
+          label.textContent = '赤シート隠す: ON';
+          icon.className = 'fa-solid fa-eye';
+        } else {
+          backContainer.classList.remove('red-sheet-hidden');
+          label.textContent = '赤シート隠す: OFF';
+          icon.className = 'fa-solid fa-eye-slash';
+        }
+      });
+
+      // 正解・不正解判定ボタン
+      document.getElementById('btnJudgeWrong').addEventListener('click', () => handleJudge(false));
+      document.getElementById('btnJudgeCorrect').addEventListener('click', () => handleJudge(true));
+
+      // キーボードショートカット
+      document.addEventListener('keydown', (e) => {
+        const tag = document.activeElement?.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+        if (!document.getElementById('customDialog').classList.contains('hidden')) return;
+        if (!document.getElementById('modalBulkImport').classList.contains('hidden')) return;
+        if (document.getElementById('tab-study').classList.contains('hidden')) return;
+
+        if (e.code === 'Space') {
+          e.preventDefault();
+          studyState.isFlipped = !studyState.isFlipped;
+          document.getElementById('flashcardInner').classList.toggle('rotate-y-180', studyState.isFlipped);
+        } else if (e.key === '1' || e.key === 'ArrowLeft') {
+          e.preventDefault();
+          handleJudge(false);
+        } else if (e.key === '2' || e.key === 'ArrowRight') {
+          e.preventDefault();
+          handleJudge(true);
+        } else if (e.key.toLowerCase() === 'h') {
+          const hintBtn = document.getElementById('btnShowHint');
+          if (!hintBtn.classList.contains('hidden')) {
+            document.getElementById('cardHintBox').classList.toggle('hidden');
+          }
+        }
+      });
+
+      // 成績タブ操作
+      document.getElementById('btnStartWeaknessFromStats').addEventListener('click', () => {
+        document.querySelector('.nav-tab[data-tab="study"]').click();
+        studyState.mode = 'weakness';
+        buildSimpleSession(getCurrentDeck());
+        renderStudyView();
+      });
+
+      document.getElementById('btnResetDeckStats').addEventListener('click', async () => {
+        const ok = await showCustomDialog({
+          title: '学習履歴のリセット',
+          message: 'このデッキの全問題の正答率・誤答履歴を0にリセットしますか？',
+          confirmText: 'リセットする',
+          confirmDanger: true
+        });
+        if (!ok) return;
+        const deck = getCurrentDeck();
+        deck.cards.forEach(c => {
+          c.stats = { attempts: 0, correct: 0, wrong: 0, streak: 0, lastStudied: null };
+        });
+        saveAppData();
+        renderStatsView();
+        showToast('学習履歴をリセットしました', 'info');
+      });
+
+      // 新規デッキ作成
+      document.getElementById('btnNewDeckModal').addEventListener('click', async () => {
+        const title = await showCustomDialog({
+          title: '新しい学習デッキを作成',
+          message: '科目名やテスト範囲のタイトルを入力してください（例：電気回路 中間試験対策）',
+          showInput: true,
+          confirmText: '作成する'
+        });
+        if (!title) return;
+
+        const newDeck = {
+          id: generateId('deck'),
+          title,
+          description: 'カスタム作成デッキ',
+          createdAt: Date.now(),
+          cards: []
+        };
+        appData.decks.push(newDeck);
+        appData.currentDeckId = newDeck.id;
+        saveAppData();
+        renderAllViews();
+        document.querySelector('.nav-tab[data-tab="manage"]').click();
+        showToast(`「${title}」を作成しました`, 'success');
+      });
+
+      // デッキ名変更・削除
+      document.getElementById('btnRenameDeck').addEventListener('click', async () => {
+        const deck = getCurrentDeck();
+        const newTitle = await showCustomDialog({
+          title: 'デッキ名の変更',
+          message: '新しいデッキ名を入力してください',
+          showInput: true,
+          defaultValue: deck.title,
+          confirmText: '変更する'
+        });
+        if (!newTitle) return;
+        deck.title = newTitle;
+        saveAppData();
+        renderAllViews();
+        showToast('デッキ名を変更しました', 'success');
+      });
+
+      document.getElementById('btnDeleteDeck').addEventListener('click', async () => {
+        if (appData.decks.length <= 1) {
+          await showCustomDialog({
+            title: '削除できません',
+            message: '最後の1つのデッキは削除できません。先に別のデッキを作成してください。',
+            showCancel: false
+          });
+          return;
+        }
+        const deck = getCurrentDeck();
+        const ok = await showCustomDialog({
+          title: 'デッキの削除',
+          message: `「${deck.title}」（${deck.cards.length}問）を完全に削除しますか？`,
+          confirmText: '削除する',
+          confirmDanger: true
+        });
+        if (!ok) return;
+
+        appData.decks = appData.decks.filter(d => d.id !== deck.id);
+        delete appData.blockSessions[deck.id];
+        appData.currentDeckId = appData.decks[0].id;
+        saveAppData();
+        renderAllViews();
+        showToast('デッキを削除しました', 'info');
+      });
+
+      // GUIカード追加・編集フォーム
+      document.getElementById('cardEditorForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const deck = getCurrentDeck();
+        const editId = document.getElementById('editCardId').value;
+        const front = document.getElementById('inputCardFront').value.trim();
+        const back = document.getElementById('inputCardBack').value.trim();
+        const hint = document.getElementById('inputCardHint').value.trim();
+        const category = document.getElementById('inputCardCategory').value.trim() || '一般';
+
+        if (!front || !back) return;
+
+        if (editId) {
+          const card = deck.cards.find(c => c.id === editId);
+          if (card) {
+            card.front = front;
+            card.back = back;
+            card.hint = hint;
+            card.category = category;
+            showToast('問題を更新しました', 'success');
+          }
+        } else {
+          deck.cards.push({
+            id: generateId('card'),
+            front,
+            back,
+            hint,
+            category,
+            stats: { attempts: 0, correct: 0, wrong: 0, streak: 0, lastStudied: null }
+          });
+          showToast('新しい問題を追加しました', 'success');
+        }
+
+        resetEditorForm();
+        saveAppData();
+        renderDeckSelector();
+        renderManageView();
+      });
+
+      document.getElementById('btnCancelEdit').addEventListener('click', resetEditorForm);
+      document.getElementById('manageSearchInput').addEventListener('input', renderManageView);
+
+      // 一括インポートモーダル操作
+      const bulkModal = document.getElementById('modalBulkImport');
+      const bulkTextarea = document.getElementById('bulkImportTextarea');
+
+      document.getElementById('btnOpenBulkImport').addEventListener('click', () => {
+        bulkTextarea.value = '';
+        document.getElementById('bulkParseCount').textContent = '認識: 0問';
+        bulkModal.classList.remove('hidden');
+      });
+
+      const closeBulk = () => bulkModal.classList.add('hidden');
+      document.getElementById('btnCloseBulkModal').addEventListener('click', closeBulk);
+      document.getElementById('btnCancelBulkModal').addEventListener('click', closeBulk);
+
+      bulkTextarea.addEventListener('input', () => {
+        const parsed = parseBulkText(bulkTextarea.value);
+        document.getElementById('bulkParseCount').textContent = `認識: ${parsed.length}問`;
+      });
+
+      document.querySelectorAll('input[name="bulkTarget"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+          document.getElementById('bulkNewDeckName').classList.toggle('hidden', e.target.value !== 'new');
+        });
+      });
+
+      // AIプロンプトコピー（execCommand使用）
+      document.getElementById('btnCopyAiPrompt').addEventListener('click', () => {
+        const promptText = document.getElementById('aiPromptTemplate').textContent;
+        const temp = document.createElement('textarea');
+        temp.value = promptText;
+        document.body.appendChild(temp);
+        temp.select();
+        try {
+          document.execCommand('copy');
+          showToast('AI用プロンプトをクリップボードにコピーしました！', 'success');
+        } catch (err) {
+          showToast('コピーに失敗しました', 'error');
+        }
+        document.body.removeChild(temp);
+      });
+
+      // 一括追加実行
+      document.getElementById('btnExecuteBulkImport').addEventListener('click', () => {
+        const parsed = parseBulkText(bulkTextarea.value);
+        if (parsed.length === 0) {
+          showToast('有効な問題データが見つかりません。「問題 | 答え」の形式で入力してください', 'warning');
+          return;
+        }
+
+        const targetMode = document.querySelector('input[name="bulkTarget"]:checked').value;
+        let targetDeck = getCurrentDeck();
+
+        if (targetMode === 'new') {
+          const newName = document.getElementById('bulkNewDeckName').value.trim() || `新規デッキ (${new Date().toLocaleDateString()})`;
+          targetDeck = {
+            id: generateId('deck'),
+            title: newName,
+            description: '一括インポート作成デッキ',
+            createdAt: Date.now(),
+            cards: []
+          };
+          appData.decks.push(targetDeck);
+          appData.currentDeckId = targetDeck.id;
+        }
+
+        parsed.forEach(item => {
+          targetDeck.cards.push({
+            id: generateId('card'),
+            front: item.front,
+            back: item.back,
+            hint: item.hint,
+            category: item.category,
+            stats: { attempts: 0, correct: 0, wrong: 0, streak: 0, lastStudied: null }
+          });
+        });
+
+        saveAppData();
+        closeBulk();
+        renderAllViews();
+        showToast(`${parsed.length}問を一括追加しました！`, 'success');
+      });
+
+      // JSONエクスポート
+      document.getElementById('btnExportJson').addEventListener('click', () => {
+        const dataStr = JSON.stringify(appData, null, 2);
+        const blob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const dateStr = new Date().toISOString().slice(0, 10);
+        a.href = url;
+        a.download = `studyloop_backup_${dateStr}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('JSONバックアップファイルを保存しました', 'success');
+      });
+
+      // JSONインポート
+      document.getElementById('inputImportJson').addEventListener('change', (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (ev) => {
+          try {
+            const imported = JSON.parse(ev.target.result);
+            if (!imported || !Array.isArray(imported.decks)) {
+              throw new Error('Invalid format');
+            }
+
+            let addedDecks = 0;
+            let mergedCards = 0;
+
+            imported.decks.forEach(impDeck => {
+              const existingDeck = appData.decks.find(d => d.id === impDeck.id || d.title === impDeck.title);
+              if (existingDeck) {
+                const existingFronts = new Set(existingDeck.cards.map(c => c.front));
+                (impDeck.cards || []).forEach(c => {
+                  if (!existingFronts.has(c.front)) {
+                    existingDeck.cards.push({
+                      id: c.id || generateId('card'),
+                      front: c.front,
+                      back: c.back,
+                      hint: c.hint || '',
+                      category: c.category || '一般',
+                      stats: c.stats || { attempts: 0, correct: 0, wrong: 0, streak: 0, lastStudied: null }
+                    });
+                    mergedCards += 1;
+                  }
+                });
+              } else {
+                appData.decks.push({
+                  id: impDeck.id || generateId('deck'),
+                  title: impDeck.title || 'インポートされたデッキ',
+                  description: impDeck.description || '',
+                  createdAt: impDeck.createdAt || Date.now(),
+                  cards: (impDeck.cards || []).map(c => ({
+                    id: c.id || generateId('card'),
+                    front: c.front,
+                    back: c.back,
+                    hint: c.hint || '',
+                    category: c.category || '一般',
+                    stats: c.stats || { attempts: 0, correct: 0, wrong: 0, streak: 0, lastStudied: null }
+                  }))
+                });
+                addedDecks += 1;
+              }
+            });
+
+            saveAppData();
+            renderAllViews();
+            showToast(`読み込み完了（新規デッキ: ${addedDecks}件 / 追加問題: ${mergedCards}問）`, 'success');
+          } catch (err) {
+            showToast('JSONファイルの形式が正しくありません', 'error');
+          } finally {
+            e.target.value = '';
+          }
+        };
+        reader.readAsText(file);
+      });
+    }
+
+    function resetEditorForm() {
+      document.getElementById('editCardId').value = '';
+      document.getElementById('inputCardFront').value = '';
+      document.getElementById('inputCardBack').value = '';
+      document.getElementById('inputCardHint').value = '';
+      document.getElementById('inputCardCategory').value = '';
+      document.getElementById('editorFormTitle').innerHTML = `<i class="fa-solid fa-circle-plus text-indigo-500"></i> 新しい問題を追加する`;
+      document.getElementById('btnSubmitCard').innerHTML = `<i class="fa-solid fa-plus mr-1.5"></i>問題をデッキに追加`;
+      document.getElementById('btnCancelEdit').classList.add('hidden');
+    }
+
+    function renderAllViews() {
+      renderDeckSelector();
+      renderStudyView();
+      renderStatsView();
+      renderManageView();
+    }
+
+    // 起動処理
+    window.addEventListener('DOMContentLoaded', () => {
+      loadAppData();
+      applyTheme();
+      bindEvents();
+      renderAllViews();
+    });
+  </script>
+</body>
+</html>
